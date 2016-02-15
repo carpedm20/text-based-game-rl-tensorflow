@@ -1,7 +1,9 @@
 import tensorflow as tf
+from collections import deque
 from tensorflow.models.rnn import rnn, rnn_cell
 
 from .base import Model
+from ..game import Game
 
 class LSTMDQN(Model):
   """LSTM Deep Q Network
@@ -56,5 +58,10 @@ class LSTMDQN(Model):
     action = rnn_cell.linear(mean_pool, self.action_size, 0, "action")
     object_ = rnn_cell.linear(mean_pool, self.object_size, 0, "object")
 
-  def run(self):
-    pass
+  def train(self):
+    self.memory = deque()
+
+    action = np.zeros(self.action_size)
+
+    while True:
+      pass
