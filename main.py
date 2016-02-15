@@ -10,6 +10,7 @@ flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
 flags.DEFINE_integer("embed_dim", 100, "The dimension of word embedding matrix [100]")
 flags.DEFINE_integer("seq_length", 30, "The maximum length of word [30]")
 flags.DEFINE_integer("batch_size", 25, "The size of batch images [25]")
+flags.DEFINE_integer("layer_depth", 1, "The size of batch images [1]")
 flags.DEFINE_float("learning_rate", 1.0, "Learning rate [1.0]")
 flags.DEFINE_float("decay", 0.5, "Decay of SGD [0.5]")
 flags.DEFINE_string("game_name", "home", "The name of game [game]")
@@ -29,6 +30,7 @@ def main(_):
     model = LSTMDQN(checkpoint_dir=FLAGS.checkpoint_dir,
                     seq_length=FLAGS.seq_length,
                     embed_dim=FLAGS.embed_dim,
+                    layer_depth=FLAGS.layer_depth,
                     batch_size=FLAGS.batch_size,
                     forward_only=FLAGS.forward_only,
                     game_name=FLAGS.game_name,
