@@ -1,4 +1,5 @@
 import time
+import random
 import tensorflow as tf
 from collections import deque
 from tensorflow.models.rnn import rnn, rnn_cell
@@ -31,7 +32,7 @@ class LSTMDQN(Model):
     self.embed_dim = embed_dim
     self.vocab_size = 100
 
-    self.start_epsilon = start_epsilon
+    self.epsilon = self.start_epsilon = start_epsilon
     self.final_epsilon = final_epsilon
     self.memory_size = memory_size
 
@@ -45,6 +46,7 @@ class LSTMDQN(Model):
     self.build_model()
 
   def build_model(self):
+    # Representation Generator
     self.inputs = tf.placeholder(tf.int32, [self.batch_size, self.seq_length])
 
     embed = tf.get_variable("embed", [self.vocab_size, self.embed_dim])
@@ -60,13 +62,14 @@ class LSTMDQN(Model):
     output_embed = tf.pack(outputs)
     mean_pool = tf.nn.relu(tf.reduce_mean(output_embed, 1))
 
-    self.action_size = 4
+    self.num_action = 4
     self.object_size = 4
 
-    # no bias in paper
-    self.true_action = tf.placeholder(tf.int32, [self.batch_size, self.action_size])
-    self.pred_action = rnn_cell.linear(mean_pool, self.action_size, 0, "action")
+    # Action scorer. no bias in paper
+    self.pred_action = rnn_cell.linear(mean_pool, self.num_action, 0, "action")
     self.object_ = rnn_cell.linear(mean_pool, self.object_size, 0, "object")
+
+    self.true_action = tf.placeholder(tf.int32, [self.batch_size, self.num_action])
 
   def train(self, max_iter=1000000,
             alpha=0.01, learning_rate=0.001,
@@ -94,7 +97,7 @@ class LSTMDQN(Model):
 
     self.memory = deque()
 
-    action = np.zeros(self.action_size)
+    action = np.zeros(self.num_action)
     action[0] = 1
 
     sentences_t, reward, is_end = agent.do(action)
@@ -106,5 +109,16 @@ class LSTMDQN(Model):
     start_iter = self.step.eval()
 
     for step in xrange(start_iter, start_iter + self.max_iter): 
-      self.pred_action.eval(feed_dict = {self.inputs: sentences})
-      action_t = np.zeros([self.
+      otuput_t = self.pred_action.eval(feed_dict = {self.inputs: state_t})
+      action_t = np.zeros([self.num_action])
+
+      if random.random() <= self.epsilon or step <= observe:
+        action_idx = random.randrange(0, self.num_action - 1)
+      else:
+        action_idx = np.argmax(output_t)
+
+      action_t[action_idx] = 1
+
+      if epsilon > final_epsilon and t > observe:
+        epsilon -= (self.start_epsilon - self.final_epsilon) / self.explore_t
+
