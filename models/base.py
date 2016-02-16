@@ -28,6 +28,15 @@ class Model(object):
     self.saver.save(self.sess, 
         os.path.join(checkpoint_dir, model_name), global_step=global_step)
 
+  def initialize(self, log_dir="./logs"):
+    self.merged_sum = tf.merge_all_summaries()
+    self.writer = tf.train.SummaryWriter(log_dir, self.sess.graph_def)
+
+    tf.initialize_all_variables().run()
+    self.load(self.checkpoint_dir)
+
+    start_iter = self.step.eval()
+
   def load(self, checkpoint_dir):
     self.saver = tf.train.Saver()
 

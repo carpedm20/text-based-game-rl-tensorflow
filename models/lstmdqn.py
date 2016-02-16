@@ -1,9 +1,10 @@
+import time
 import tensorflow as tf
 from collections import deque
 from tensorflow.models.rnn import rnn, rnn_cell
 
 from .base import Model
-from ..game import Game
+from ..game import Agent
 
 class LSTMDQN(Model):
   """LSTM Deep Q Network
@@ -30,13 +31,20 @@ class LSTMDQN(Model):
     self.embed_dim = embed_dim
     self.vocab_size = 100
 
+    self.start_epsilon = start_epsilon
+    self.final_epsilon = final_epsilon
+    self.memory_size = memory_size
+
     self.game_dir = game_dir
     self.game_name = game_name
+
+    self.game = Agent(self.game_dir, self.game_name)
+    self.action = self.game.action
+    self.object_ = self.game.object_
 
     self.build_model()
 
   def build_model(self):
-    #self.inputs = tf.placeholder(tf.int32, [None, self.seq_length])
     self.inputs = tf.placeholder(tf.int32, [self.batch_size, self.seq_length])
 
     embed = tf.get_variable("embed", [self.vocab_size, self.embed_dim])
@@ -55,13 +63,48 @@ class LSTMDQN(Model):
     self.action_size = 4
     self.object_size = 4
 
-    action = rnn_cell.linear(mean_pool, self.action_size, 0, "action")
-    object_ = rnn_cell.linear(mean_pool, self.object_size, 0, "object")
+    # no bias in paper
+    self.true_action = tf.placeholder(tf.int32, [self.batch_size, self.action_size])
+    self.pred_action = rnn_cell.linear(mean_pool, self.action_size, 0, "action")
+    self.object_ = rnn_cell.linear(mean_pool, self.object_size, 0, "object")
 
-  def train(self):
+  def train(self, max_iter=1000000,
+            alpha=0.01, learning_rate=0.001,
+            start_epsilon=1.0, final_epsilon=0.05, memory_size=5000,
+            checkpoint_dir="checkpoint"):
+    """Train an LSTM Deep Q Network.
+
+    Args:
+      max_iter: int, The size of total iterations [450000]
+      alpha: float, The importance of regularizer term [0.01]
+      learning_rate: float, The learning rate of SGD [0.001]
+      checkpoint_dir: str, The path for checkpoints to be saved [checkpoint]
+    """
+    self.max_iter = max_iter
+    self.alpha = alpha
+    self.learning_rate = learning_rate
+    self.checkpoint_dir = checkpoint_dir
+
+    self.step = tf.Variable(0, trainable=False)
+
+    self.loss = tf.reduce_sum(tf.square(self.true_action - self.pred_action))
+    _ = tf.scalar_summary("loss", self.loss)
+
+    self.optim = self.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+
     self.memory = deque()
 
     action = np.zeros(self.action_size)
+    action[0] = 1
 
-    while True:
-      pass
+    sentences_t, reward, is_end = agent.do(action)
+    state_t = np.stack((sentences_t, sentences_t, sentences_t, sentences_t), axis=2)
+
+    self.initialize(log_dir="./logs")
+
+    start_time = time.time()
+    start_iter = self.step.eval()
+
+    for step in xrange(start_iter, start_iter + self.max_iter): 
+      self.pred_action.eval(feed_dict = {self.inputs: sentences})
+      action_t = np.zeros([self.
