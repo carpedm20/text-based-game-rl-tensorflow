@@ -31,7 +31,7 @@ def main(_):
     os.makedirs(FLAGS.checkpoint_dir)
 
   if FLAGS.game_name == "home":
-    game = HomeGame(game_dir=FLAGS.game_dir, embed_dim=FLAGS.embed_dim)
+    game = HomeGame(game_dir=FLAGS.game_dir, seq_length=FLAGS.seq_length)
   else:
     raise Exception(" [!] %s not implemented yet" % self.game_name)
 
@@ -43,13 +43,12 @@ def main(_):
                     batch_size=FLAGS.batch_size,
                     start_epsilon=FLAGS.start_epsilon,
                     forward_only=FLAGS.forward_only)
-                    
 
-  if not FLAGS.forward_only:
-    model.train()
-  else:
-    test_loss = model.test(2)
-    print(" [*] Test loss: %2.6f, perplexity: %2.6f" % (test_loss, np.exp(test_loss)))
+    if not FLAGS.forward_only:
+      model.train()
+    else:
+      test_loss = model.test(2)
+      print(" [*] Test loss: %2.6f, perplexity: %2.6f" % (test_loss, np.exp(test_loss)))
 
 if __name__ == '__main__':
   tf.app.run()

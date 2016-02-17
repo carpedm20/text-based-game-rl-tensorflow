@@ -12,9 +12,6 @@ class LSTMDQN(Model):
   def __init__(self, game, rnn_size=100, batch_size=25,
                seq_length=30, embed_dim=100, layer_depth=3,
                start_epsilon=1, epsilon_end_time=1000000,
-               discount=0.99, update_freq=1, n_replay=1,
-               learn_start, history_len, rescale_r, max_reward,
-               min_reward, clip_delta, target_q, best_q=0,
                memory_size=1000000, 
                checkpoint_dir="checkpoint", forward_only=False):
     """Initialize the parameters for LSTM DQN
@@ -39,9 +36,14 @@ class LSTMDQN(Model):
     self.final_epsilon = 0.05
     self.observe = 500
     self.explore = 500
+    self.gamma = 0.99
     self.memory_size = memory_size
 
     self.game = game
+    self.dataset = game.name
+
+    self._attrs = ['epsilon', 'final_epsilon', 'oberve', \
+        'explore', 'gamma', 'memory_size', 'batch_size']
 
     self.build_model()
 
@@ -83,73 +85,69 @@ class LSTMDQN(Model):
       learning_rate: float, The learning rate of SGD [0.001]
       checkpoint_dir: str, The path for checkpoints to be saved [checkpoint]
     """
-    self.max_iter = max_iter
-    self.alpha = alpha
-    self.learning_rate = learning_rate
-    self.checkpoint_dir = checkpoint_dir
+    with self.sess:
+      self.max_iter = max_iter
+      self.alpha = alpha
+      self.learning_rate = learning_rate
+      self.checkpoint_dir = checkpoint_dir
 
-    self.step = tf.Variable(0, trainable=False)
+      self.step = tf.Variable(0, trainable=False)
 
-    self.loss = tf.reduce_sum(tf.square(self.true_action - self.pred_action))
-    _ = tf.scalar_summary("loss", self.loss)
+      self.loss = tf.reduce_sum(tf.square(self.true_action - self.pred_action))
+      _ = tf.scalar_summary("loss", self.loss)
 
-    self.optim = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+      self.optim = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
-    self.memory = deque()
+      self.memory = deque()
 
-    action = np.zeros(self.num_action)
-    action[0] = 1
+      action = np.zeros(self.num_action)
+      action[0] = 1
 
-    self.initialize(log_dir="./logs")
+      self.initialize(log_dir="./logs")
 
-    start_time = time.time()
-    start_iter = self.step.eval()
+      start_time = time.time()
+      start_iter = self.step.eval()
 
-    state_t, reward, is_finished = self.game.new_game()
-    state_t = np.stack((sentence_t, sentence_t, sentence_t, sentence_t), axis=2)
+      state_t, reward, is_finished = self.game.new_game()
+      state_t = np.tile(state_t, [self.batch_size,1])
 
-    for step in xrange(start_iter, start_iter + self.max_iter): 
-      if self.max_reward != None:
-        reward = min(self.max_reward, reward)
-      if self.min_reward != None:
-        reward = max(self.min_reward, reward)
+      for step in xrange(start_iter, start_iter + self.max_iter): 
+        otuput_t = self.pred_action.eval(feed_dict = {self.inputs: state_t})
+        action_t = np.zeros([self.num_action])
 
-      otuput_t = self.pred_action.eval(feed_dict = {self.inputs: state_t})
-      action_t = np.zeros([self.num_action])
+        if random.random() <= self.epsilon or step <= observe:
+          action_idx = random.randrange(0, self.num_action - 1)
+        else:
+          action_idx = np.argmax(output_t)
 
-      if random.random() <= self.epsilon or step <= observe:
-        action_idx = random.randrange(0, self.num_action - 1)
-      else:
-        action_idx = np.argmax(output_t)
+        action_t[action_idx] = 1
 
-      action_t[action_idx] = 1
+        if self.epsilon > self.final_epsilon and step > self.observe:
+          self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
 
-      if self.epsilon > self.final_epsilon and step > self.observe:
-        self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
+        if step > self.observe:
+          batch = random.sample(memory, self.batch_size)
 
-      if step > self.oberseve:
-        batch = random.sample(memory, self.batch_size)
+          s = [mem[0] for mem in batch]
+          a = [mem[1] for mem in batch]
+          o = [mem[2] for mem in batch]
+          r = [mem[3] for mem in batch]
+          s2 = [mem[4] for mem in batch]
+          term = [mem[5] for mem in batch]
+          avail_objects = [mem[6] for mem in batch]
 
-        s = [mem[0] for mem in batch]
-        a = [mem[1] for mem in batch]
-        o = [mem[2] for mem in batch]
-        r = [mem[3] for mem in batch]
-        s2 = [mem[4] for mem in batch]
-        term = [mem[5] for mem in batch]
-        avail_objects = [mem[6] for mem in batch]
+          y_batch = []
+          action = pred_action.eval(feed_dict={self.inputs: s})
+          for idx in xrange(self.batch_size):
+            if batch[idx][4]:
+              y_batch.append(r[idx])
+            else:
+              y_batch.append(r[idx] + self.gamma * np.max(action[idx]))
 
-        y_batch = []
-        action = pred_action.eval(feed_dict={self.inputs=s})
-        for idx in xrange(self.batch_size):
-          if batch[idx][4]:
-            y_batch.append(r[idx])
-          else:
-            y_batch.append(r[idx] + self.gamma * np.max(action[idx]))
+          train.run(feed_dict={
+            true_action: None,
+            pred_action: None,
+            s: None
+          })
 
-        train.run(feed_dict={
-          true_action: None,
-          pred_action: None,
-          s: None
-        })
-
-      s_t = s_t1
+        s_t = s_t1

@@ -10,13 +10,14 @@ def clean_words(words):
 class HomeGame(Game):
   def __init__(self, num_rooms=4, default_reward=-0.01,
                junk_cmd_reward=-0.1, quest_levels=1,
-               embed_dim=100, max_step=100, debug=True,
+               seq_length=35, max_step=100, debug=True,
                username="root", password="root",
                game_dir="../text-world"):
     super(HomeGame, self).__init__(num_rooms, default_reward,
-                                   junk_cmd_reward, quest_levels, embed_dim,
+                                   junk_cmd_reward, quest_levels, seq_length,
                                    max_step, debug, username, password, game_dir)
 
+    self.name = "home"
     self.rooms = ["Living", "Garden", "Kitchen", "Bedroom"]
 
     self.actions = ["eat", "sleep", "watch", "exercise", "go"]
@@ -113,7 +114,7 @@ class HomeGame(Game):
 
   def vectorize(self, texts, reverse=True):
     null_idx = (len(self.word2idx) + 1)
-    vector = np.ones(self.embed_dim) * null_idx
+    vector = np.ones(self.seq_length) * null_idx
 
     cnt = 0
     for text in texts:

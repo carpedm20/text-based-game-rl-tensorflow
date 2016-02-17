@@ -5,7 +5,7 @@ class Game(object):
   """
   def __init__(self, num_rooms=4, default_reward=-0.01,
                junk_cmd_reward=-0.1, quest_levels=1,
-               embed_dim=100, max_step=100, debug=True,
+               seq_length=100, max_step=100, debug=True,
                username="root", password="root",
                game_dir="home"):
     """Initialize the parameters for Game object
@@ -18,7 +18,7 @@ class Game(object):
     self.junk_cmd_reward = float(junk_cmd_reward)
     self.quest_levels = int(quest_levels)
     self.max_step = int(max_step)
-    self.embed_dim = int(embed_dim)
+    self.seq_length = int(seq_length)
 
     self.debug = debug
     self.client = TCPClient()
