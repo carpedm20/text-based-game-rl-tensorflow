@@ -37,6 +37,7 @@ class LSTMDQN(Model):
     self.observe = 500
     self.explore = 500
     self.gamma = 0.99
+    self.num_action_per_step = 1
     self.memory_size = memory_size
 
     self.game = game
@@ -125,6 +126,10 @@ class LSTMDQN(Model):
         if self.epsilon > self.final_epsilon and step > self.observe:
           self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
 
+        # run and observe rewards
+        for idx in xrange(self.num_action_per_step):
+          pass
+
         if step > self.observe:
           batch = random.sample(memory, self.batch_size)
 
@@ -150,4 +155,4 @@ class LSTMDQN(Model):
             s: None
           })
 
-        s_t = s_t1
+        state_t = state_t1
