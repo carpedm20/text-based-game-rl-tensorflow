@@ -1,15 +1,21 @@
+import os
 import time
+import string
 import numpy as np
 from .game import Game
+
+def clean_words(words):
+  return [word.lower().translate(None, string.punctuation) for word in words]
 
 class HomeGame(Game):
   def __init__(self, num_rooms=4, default_reward=-0.01,
                junk_cmd_reward=-0.1, quest_levels=1,
-               max_step=100, debug=True,
-               username="root", password="root"):
+               embed_dim=100, max_step=100, debug=True,
+               username="root", password="root",
+               game_dir="../text-world"):
     super(HomeGame, self).__init__(num_rooms, default_reward,
-                                   junk_cmd_reward, quest_levels,
-                                   max_step, debug, username, password)
+                                   junk_cmd_reward, quest_levels, embed_dim,
+                                   max_step, debug, username, password, game_dir)
 
     self.rooms = ["Living", "Garden", "Kitchen", "Bedroom"]
 
@@ -21,7 +27,28 @@ class HomeGame(Game):
     self.quests_mislead = ["You are not hungry", "You are not sleepy", \
                            "You are not bored", "You are not getting fat"]
 
+    self.idx2word = ["not", "but", "now"]
+
+    self.make_vocab(os.path.join(self.game_dir, "evennia/contrib/text_sims/build.ev"))
     self.new_game()
+
+  def make_vocab(self, fname):
+    with open(fname) as f:
+      data = []
+      for line in f:
+        words = line.split()
+        if words:
+          if words[0] == '@detail' or words[0] == '@desc':
+            self.idx2word.extend(words[3:])
+          elif words[0] == '@create/drop':
+            self.objects.append(words[1].split(":")[0])
+
+    for quest in self.quests:
+      quest = quest.translate(None, string.punctuation)
+      self.idx2word.extend(quest.split())
+
+    self.idx2word = list(set(clean_words(self.idx2word)))
+    self.word2idx = {word: idx for idx, word in enumerate(self.idx2word)}
 
   def new_game(self):
     self.quest_checklist = []
@@ -64,13 +91,14 @@ class HomeGame(Game):
     self.client.send('look')
     room_description = self.client.get()
 
-    text, reward = self.parse_game_output(data, room_description)
+    texts, reward = self.parse_game_output(data, room_description)
 
     if self.debug:
-      print(text, reward)
+      print(" => get_state(text=%s, reward=%s)" % (texts, reward))
       if reward > 0:
         time.sleep(2)
 
+    # remove completed quest and refresh new quest
     if reward >= 1:
       self.quest_checklist = self.quest_checklist[1:]
       self.mislead_quest_checklist = self.mislead_quest_checklist[1:]
@@ -78,18 +106,38 @@ class HomeGame(Game):
       if len(self.quest_checklist) == 0:
         is_finished = True
       else:
-        text.append(self.get_quest_text(self.quest_checklist[0]))
+        texts.append(self.get_quest_text(self.quest_checklist[0]))
 
-    vector = self.vectorize(text)
-
+    vector = self.vectorize(texts)
     return vector, reward, is_finished
+
+  def vectorize(self, texts, reverse=True):
+    null_idx = (len(self.word2idx) + 1)
+    vector = np.ones(self.embed_dim) * null_idx
+
+    cnt = 0
+    for text in texts:
+      for word in clean_words(text.split()):
+        if reverse:
+          vector[cnt] = self.word2idx[word]
+        else:
+          raise Exception(" [!] %s not in vocab" % word)
+        cnt += 1
+
+    return vector[::-1]
 
   def parse_game_output(self, text, room_description):
     reward = None
     text_to_agent = [room_description, self.get_quest_text(self.quest_checklist[0])]
 
-    for idx in xrange(len(text)):
-      pass
+    if "REWARD" in text:
+      import ipdb; ipdb.set_trace() 
+    elif 'not available' in text:
+      reward = self.junk_cmd_reward
+    else:
+      reward = self.default_reward
+
+    return text_to_agent, reward
 
   def get_quest_text(self, quest_num):
     return self.quests_mislead[self.mislead_quest_checklist[0]] + " now but " + self.quests[quest_num] + " now."
