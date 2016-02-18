@@ -16,6 +16,9 @@ class TCPClient(object):
 
   def get(self):
     data = self.client.read_until('<EOM>')[:-5]
+    print("*****************************")
+    print(data)
+    print("*****************************")
     return ansi_escape.sub('', data).strip()
 
   def send(self, data):
