@@ -62,7 +62,7 @@ class LSTMDQN(Model):
     self.stacked_cell = tf.nn.rnn_cell.MultiRNNCell([self.cell] * self.layer_depth)
 
     outputs, _ = tf.nn.rnn(self.cell,
-        [tf.squeeze(embed_t) for embed_t in tf.split(1, self.seq_length, word_embeds)],
+        [tf.reshape(embed_t, [self.batch_size, self.embed_dim]) for embed_t in tf.split(1, self.seq_length, word_embeds)],
                             dtype=tf.float32)
 
     output_embed = tf.transpose(tf.pack(outputs), [1, 0, 2])
@@ -116,6 +116,9 @@ class LSTMDQN(Model):
         pred_action, pred_object = self.sess.run(
             [self.pred_action, self.pred_object], feed_dict={self.inputs: state_t})
 
+        pred_action = np.squeeze(pred_action)
+        pred_object = np.squeeze(pred_object)
+
         action_t = np.zeros([self.num_action])
         object_t = np.zeros([self.num_object])
 
@@ -135,13 +138,13 @@ class LSTMDQN(Model):
 
         # run and observe rewards
         max_action = np.max(pred_action)
-        max_object = np.max(pred_action)
+        max_object = np.max(pred_object)
 
-        action = np.choice(np.where(pred_action == max_action))
-        object_ = np.choice(np.where(pred_object == max_object))
+        action_idx = np.random.choice(np.where(pred_action == max_action)[0])
+        object_idx = np.random.choice(np.where(pred_object == max_object)[0])
 
-        best_q = (max_action + max_ojbect)/2
-        state_t1, reward_t, terminal = game.do(action)
+        best_q = (max_action + max_object)/2
+        state_t1, reward_t, terminal = self.game.do(action_idx, object_idx)
 
         memory.append((state_t, action_t, object_, reward_t, state_t1, terminal))
 

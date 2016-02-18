@@ -11,7 +11,7 @@ flags = tf.app.flags
 flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
 flags.DEFINE_integer("embed_dim", 100, "The dimension of word embedding matrix [100]")
 flags.DEFINE_integer("seq_length", 30, "The maximum length of word [30]")
-flags.DEFINE_integer("batch_size", 25, "The size of batch images [25]")
+flags.DEFINE_integer("batch_size", 1, "The size of batch images [1]")
 flags.DEFINE_integer("layer_depth", 1, "The size of batch images [1]")
 flags.DEFINE_integer("epsilon_end_time", 1000000, "# of time step to decay epsilon [1000000]")
 flags.DEFINE_float("start_epsilon", 1.0, "The start value of epsilon [1.0]")

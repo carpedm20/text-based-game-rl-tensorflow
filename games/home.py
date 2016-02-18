@@ -95,7 +95,7 @@ class HomeGame(Game):
     texts, reward = self.parse_game_output(data, room_description)
 
     if self.debug:
-      print(" => get_state(\n\tdescription\t= %s \n\tstatus\t\t= %s \n\treward\t\t= %s)" % (texts[0], texts[1], reward))
+      print(" [@] get_state(\n\tdescription\t= %s \n\tstatus\t\t= %s \n\treward\t\t= %s)" % (texts[0], texts[1], reward))
       if reward > 0:
         time.sleep(2)
 
@@ -119,13 +119,13 @@ class HomeGame(Game):
     cnt = 0
     for text in texts:
       for word in clean_words(text.split()):
-        if reverse:
-          vector[cnt] = self.word2idx[word]
-        else:
-          raise Exception(" [!] %s not in vocab" % word)
-        cnt += 1
+        vector[cnt] = self.word2idx[word]
+      cnt += 1
 
-    return vector[::-1]
+    if reverse:
+      return vector[::-1]
+    else:
+      return vector
 
   def parse_game_output(self, text, room_description):
     reward = None
@@ -142,3 +142,12 @@ class HomeGame(Game):
 
   def get_quest_text(self, quest_num):
     return self.quests_mislead[self.mislead_quest_checklist[0]] + " now but " + self.quests[quest_num] + " now."
+
+  def do(self, action_idx, object_idx):
+    command = "%s %s" % (self.actions[action_idx], self.objects[object_idx])
+    self.client.send(command)
+
+    if self.debug:
+       print(" [@] %s %s" % (self.actions[action_idx], self.objects[object_idx]))
+
+    return self.get_state()
