@@ -19,4 +19,7 @@ class TCPClient(object):
     return ansi_escape.sub('', data).strip()
 
   def send(self, data):
+    print("=============================")
+    print(data)
+    print("=============================")
     self.client.write(data + "\n")

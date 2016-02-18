@@ -146,7 +146,7 @@ class LSTMDQN(Model):
         best_q = (max_action + max_object)/2
         state_t1, reward_t, terminal = self.game.do(action_idx, object_idx)
 
-        memory.append((state_t, action_t, object_, reward_t, state_t1, terminal))
+        self.memory.append((state_t, action_idx, object_idx, reward_t, state_t1, terminal))
 
         # qLearnMinibatch : Q-learning updates
         if step > self.observe:

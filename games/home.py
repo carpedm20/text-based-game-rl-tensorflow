@@ -66,6 +66,7 @@ class HomeGame(Game):
     self.client.send('@tel tut#0%s' % room_idx)
     time.sleep(0.1)
     self.client.get()
+    self.client.get()
     self.client.send('l')
 
     if self.debug:
@@ -88,6 +89,7 @@ class HomeGame(Game):
   def get_state(self):
     is_finished = self.step > self.max_step
     data = self.client.get()
+    print(data)
 
     self.client.send('look')
     room_description = self.client.get()
@@ -119,7 +121,10 @@ class HomeGame(Game):
     cnt = 0
     for text in texts:
       for word in clean_words(text.split()):
-        vector[cnt] = self.word2idx[word]
+        try:
+          vector[cnt] = self.word2idx[word]
+        except:
+          print(" [!] %s not in vocab" % word)
       cnt += 1
 
     if reverse:
@@ -148,6 +153,6 @@ class HomeGame(Game):
     self.client.send(command)
 
     if self.debug:
-       print(" [@] %s %s" % (self.actions[action_idx], self.objects[object_idx]))
+       print(" [@] do(%s %s)" % (self.actions[action_idx], self.objects[object_idx]))
 
     return self.get_state()
