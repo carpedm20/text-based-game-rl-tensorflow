@@ -43,6 +43,9 @@ class LSTMDQN(Model):
     self.game = game
     self.dataset = game.name
 
+    self.num_action = len(self.game.actions)
+    self.num_objects = len(self.game.objects)
+
     self._attrs = ['epsilon', 'final_epsilon', 'oberve', \
         'explore', 'gamma', 'memory_size', 'batch_size']
 
@@ -65,12 +68,9 @@ class LSTMDQN(Model):
     output_embed = tf.transpose(tf.pack(outputs), [1, 0, 2])
     mean_pool = tf.nn.relu(tf.reduce_mean(output_embed, 1))
 
-    self.num_action = 4
-    self.object_size = 4
-
     # Action scorer. no bias in paper
     self.pred_action = tf.nn.rnn_cell.linear(mean_pool, self.num_action, 0.0, scope="action")
-    self.object_ = tf.nn.rnn_cell.linear(mean_pool, self.object_size, 0.0, scope="object")
+    self.pred_object = tf.nn.rnn_cell.linear(mean_pool, self.num_objects, 0.0, scope="object")
 
     self.true_action = tf.placeholder(tf.float32, [self.batch_size, self.num_action])
 
@@ -113,22 +113,33 @@ class LSTMDQN(Model):
       state_t = np.tile(state_t, [self.batch_size,1])
 
       for step in xrange(start_iter, start_iter + self.max_iter): 
-        otuput_t = self.pred_action.eval(feed_dict = {self.inputs: state_t})
-        action_t = np.zeros([self.num_action])
+        pred_action, pred_object = self.sess.run(
+            [self.pred_action, self.pred_object], feed_dict={self.inputs: state_t})
 
+        action_t = np.zeros([self.num_action])
+        object_t = np.zeros([self.num_object])
+
+        # Epsilon greedy
         if random.random() <= self.epsilon or step <= observe:
           action_idx = random.randrange(0, self.num_action - 1)
+          object_idx = random.randrange(0, self.num_action - 1)
         else:
-          action_idx = np.argmax(output_t)
+          action_idx = np.argmax(pred_action)
+          object_idx = np.argmax(pred_object)
 
         action_t[action_idx] = 1
+        object_t[object_idx] = 1
 
         if self.epsilon > self.final_epsilon and step > self.observe:
           self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
 
         # run and observe rewards
         for idx in xrange(self.num_action_per_step):
-          pass
+          # evaluate all other actions
+          for action in len(game.actions):
+            pass
+            game.do(action)
+          import ipdb; ipdb.set_trace() 
 
         if step > self.observe:
           batch = random.sample(memory, self.batch_size)
@@ -154,5 +165,10 @@ class LSTMDQN(Model):
             pred_action: None,
             s: None
           })
+
+        if terminal:
+          state_t, reward, is_finished = self.game.new_game()
+        else:
+          state_t, reward, is_finished = self.game.get_state()
 
         state_t = state_t1

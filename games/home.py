@@ -95,7 +95,7 @@ class HomeGame(Game):
     texts, reward = self.parse_game_output(data, room_description)
 
     if self.debug:
-      print(" => get_state(text=%s, reward=%s)" % (texts, reward))
+      print(" => get_state(\n\tdescription\t= %s \n\tstatus\t\t= %s \n\treward\t\t= %s)" % (texts[0], texts[1], reward))
       if reward > 0:
         time.sleep(2)
 
