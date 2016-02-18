@@ -44,7 +44,7 @@ class LSTMDQN(Model):
     self.dataset = game.name
 
     self.num_action = len(self.game.actions)
-    self.num_objects = len(self.game.objects)
+    self.num_object = len(self.game.objects)
 
     self._attrs = ['epsilon', 'final_epsilon', 'oberve', \
         'explore', 'gamma', 'memory_size', 'batch_size']
@@ -70,7 +70,7 @@ class LSTMDQN(Model):
 
     # Action scorer. no bias in paper
     self.pred_action = tf.nn.rnn_cell.linear(mean_pool, self.num_action, 0.0, scope="action")
-    self.pred_object = tf.nn.rnn_cell.linear(mean_pool, self.num_objects, 0.0, scope="object")
+    self.pred_object = tf.nn.rnn_cell.linear(mean_pool, self.num_object, 0.0, scope="object")
 
     self.true_action = tf.placeholder(tf.float32, [self.batch_size, self.num_action])
 
@@ -134,13 +134,18 @@ class LSTMDQN(Model):
           self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
 
         # run and observe rewards
-        for idx in xrange(self.num_action_per_step):
-          # evaluate all other actions
-          for action in len(game.actions):
-            pass
-            game.do(action)
-          import ipdb; ipdb.set_trace() 
+        max_action = np.max(pred_action)
+        max_object = np.max(pred_action)
 
+        action = np.choice(np.where(pred_action == max_action))
+        object_ = np.choice(np.where(pred_object == max_object))
+
+        best_q = (max_action + max_ojbect)/2
+        state_t1, reward_t, terminal = game.do(action)
+
+        memory.append((state_t, action_t, object_, reward_t, state_t1, terminal))
+
+        # qLearnMinibatch : Q-learning updates
         if step > self.observe:
           batch = random.sample(memory, self.batch_size)
 
