@@ -10,7 +10,7 @@ def clean_words(words):
 class HomeGame(Game):
   def __init__(self, num_rooms=4, default_reward=-0.01,
                junk_cmd_reward=-0.1, quest_levels=1,
-               seq_length=35, max_step=100, debug=True,
+               seq_length=35, max_step=100, debug=False,
                username="root", password="root",
                game_dir="../text-world"):
     super(HomeGame, self).__init__(num_rooms, default_reward,
@@ -58,16 +58,16 @@ class HomeGame(Game):
     self.random_teleport()
     self.random_quest()
 
-    return self.get_state()
+    return self.get_state(timeout=True)
 
   def random_teleport(self):
     room_idx = np.random.randint(self.num_rooms)
 
     self.client.send('@tel tut#0%s' % room_idx)
-    time.sleep(0.1)
     self.client.get()
-    self.client.get()
+
     self.client.send('l')
+    self.client.get()
 
     if self.debug:
       print(" [*] Start Room : %s %s" % (room_idx, self.rooms[room_idx]))
@@ -86,18 +86,22 @@ class HomeGame(Game):
       print(" [*] Start Quest : %s %s." % (self.get_quest_text(self.quest_checklist[0]), \
                                           self.actions[self.quest_checklist[0]]))
 
-  def get_state(self):
+  def get_state(self, action=None, object_=None, timeout=False):
     is_finished = self.step > self.max_step
-    data = self.client.get()
-    print(data)
+    result = self.client.get(timeout=timeout)
 
     self.client.send('look')
     room_description = self.client.get()
 
-    texts, reward = self.parse_game_output(data, room_description)
+    texts, reward = self.parse_game_output(result, room_description)
 
     if self.debug:
-      print(" [@] get_state(\n\tdescription\t= %s \n\tstatus\t\t= %s \n\treward\t\t= %s)" % (texts[0], texts[1], reward))
+      log = " [@] get_state(\n\tdescription\t= %s \n\tquest\t\t= %s " % (texts[0], texts[1])
+      if action != None and object_ != None:
+        log += "\n\taction\t\t= %s %s " % (action, object_)
+        log += "\n\tresult\t\t= %s)" % (result)
+      log += "\n\treward\t\t= %s)" % (reward)
+      print(log)
       if reward > 0:
         time.sleep(2)
 
@@ -123,9 +127,9 @@ class HomeGame(Game):
       for word in clean_words(text.split()):
         try:
           vector[cnt] = self.word2idx[word]
+          cnt += 1
         except:
           print(" [!] %s not in vocab" % word)
-      cnt += 1
 
     if reverse:
       return vector[::-1]
@@ -138,11 +142,10 @@ class HomeGame(Game):
 
     if "REWARD" in text:
       import ipdb; ipdb.set_trace() 
-    elif 'not available' in text:
+    elif 'not available' in text or 'not find' in text:
       reward = self.junk_cmd_reward
-    else:
+    if reward == None:
       reward = self.default_reward
-
     return text_to_agent, reward
 
   def get_quest_text(self, quest_num):
@@ -152,7 +155,4 @@ class HomeGame(Game):
     command = "%s %s" % (self.actions[action_idx], self.objects[object_idx])
     self.client.send(command)
 
-    if self.debug:
-       print(" [@] do(%s %s)" % (self.actions[action_idx], self.objects[object_idx]))
-
-    return self.get_state()
+    return self.get_state(action=self.actions[action_idx], object_=self.objects[object_idx])

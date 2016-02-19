@@ -22,10 +22,11 @@ class Game(object):
 
     self.debug = debug
     self.client = TCPClient()
+    self.client.get()
 
     self.game_dir = game_dir
     self.login(username, password)
 
   def login(self, username, password):
-    print(self.client.get())
     self.client.send("connect %s %s" % (username, password))
+    self.client.get(3)

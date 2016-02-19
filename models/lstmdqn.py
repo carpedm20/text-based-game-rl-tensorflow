@@ -69,10 +69,18 @@ class LSTMDQN(Model):
     mean_pool = tf.nn.relu(tf.reduce_mean(output_embed, 1))
 
     # Action scorer. no bias in paper
-    self.pred_action = tf.nn.rnn_cell.linear(mean_pool, self.num_action, 0.0, scope="action")
+    self.pred_reward = tf.nn.rnn_cell.linear(mean_pool, self.num_action, 0.0, scope="action")
     self.pred_object = tf.nn.rnn_cell.linear(mean_pool, self.num_object, 0.0, scope="object")
 
-    self.true_action = tf.placeholder(tf.float32, [self.batch_size, self.num_action])
+    self.true_reward = tf.placeholder(tf.float32, [self.batch_size, self.num_action])
+    self.true_object = tf.placeholder(tf.float32, [self.batch_size, self.num_object])
+
+    _ = tf.histogram_summary("mean_pool", mean_pool)
+    _ = tf.histogram_summary("pred_reward", self.pred_reward)
+    _ = tf.histogram_summary("true_reward", self.true_reward)
+
+    _ = tf.scalar_summary("pred_reward_mean", tf.reduce_mean(self.pred_reward))
+    _ = tf.scalar_summary("true_reward_mean", tf.reduce_mean(self.true_reward))
 
   def train(self, max_iter=1000000,
             alpha=0.01, learning_rate=0.001,
@@ -94,10 +102,10 @@ class LSTMDQN(Model):
 
       self.step = tf.Variable(0, trainable=False)
 
-      self.loss = tf.reduce_sum(tf.square(self.true_action - self.pred_action))
-      _ = tf.scalar_summary("loss", self.loss)
-
+      self.loss = tf.reduce_sum(tf.square(self.true_reward - self.pred_reward))
       self.optim = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+
+      _ = tf.scalar_summary("loss", self.loss)
 
       self.memory = deque()
 
@@ -110,73 +118,74 @@ class LSTMDQN(Model):
       start_iter = self.step.eval()
 
       state_t, reward, is_finished = self.game.new_game()
-      state_t = np.tile(state_t, [self.batch_size,1])
 
-      for step in xrange(start_iter, start_iter + self.max_iter): 
-        pred_action, pred_object = self.sess.run(
-            [self.pred_action, self.pred_object], feed_dict={self.inputs: state_t})
+      win_count = 0
+      steps = xrange(start_iter, start_iter + self.max_iter)
+      print(" [*] Start")
 
-        pred_action = np.squeeze(pred_action)
-        pred_object = np.squeeze(pred_object)
+      for step in steps:
+        pred_reward, pred_object = self.sess.run(
+            [self.pred_reward, self.pred_object], feed_dict={self.inputs: [state_t]})
 
         action_t = np.zeros([self.num_action])
         object_t = np.zeros([self.num_object])
 
         # Epsilon greedy
-        if random.random() <= self.epsilon or step <= observe:
+        if random.random() <= self.epsilon or step <= self.observe:
           action_idx = random.randrange(0, self.num_action - 1)
           object_idx = random.randrange(0, self.num_action - 1)
         else:
-          action_idx = np.argmax(pred_action)
-          object_idx = np.argmax(pred_object)
+          max_reward = np.max(pred_reward[0])
+          max_object = np.max(pred_object[0])
 
+          action_idx = np.random.choice(np.where(pred_reward[0] == max_reward)[0])
+          object_idx = np.random.choice(np.where(pred_object[0] == max_object)[0])
+          #best_q = (max_action + max_object)/2
+
+        # run and observe rewards
         action_t[action_idx] = 1
         object_t[object_idx] = 1
 
         if self.epsilon > self.final_epsilon and step > self.observe:
-          self.epsilon -= (self.initial_epsilon- self.final_epsilon) / self.observe
+          self.epsilon -= (self.start_epsilon- self.final_epsilon) / self.observe
 
-        # run and observe rewards
-        max_action = np.max(pred_action)
-        max_object = np.max(pred_object)
-
-        action_idx = np.random.choice(np.where(pred_action == max_action)[0])
-        object_idx = np.random.choice(np.where(pred_object == max_object)[0])
-
-        best_q = (max_action + max_object)/2
-        state_t1, reward_t, terminal = self.game.do(action_idx, object_idx)
-
-        self.memory.append((state_t, action_idx, object_idx, reward_t, state_t1, terminal))
+        state_t1, reward_t, is_finished = self.game.do(action_idx, object_idx)
+        self.memory.append((state_t, action_t, object_t, reward_t, state_t1, is_finished))
 
         # qLearnMinibatch : Q-learning updates
         if step > self.observe:
-          batch = random.sample(memory, self.batch_size)
+          batch = random.sample(self.memory, self.batch_size)
 
           s = [mem[0] for mem in batch]
           a = [mem[1] for mem in batch]
           o = [mem[2] for mem in batch]
           r = [mem[3] for mem in batch]
           s2 = [mem[4] for mem in batch]
-          term = [mem[5] for mem in batch]
-          avail_objects = [mem[6] for mem in batch]
+          finished = [mem[5] for mem in batch]
 
-          y_batch = []
-          action = pred_action.eval(feed_dict={self.inputs: s})
-          for idx in xrange(self.batch_size):
-            if batch[idx][4]:
-              y_batch.append(r[idx])
-            else:
-              y_batch.append(r[idx] + self.gamma * np.max(action[idx]))
+          if r > 0:
+            win_count += 1
 
-          train.run(feed_dict={
-            true_action: None,
-            pred_action: None,
-            s: None
+          pred_reward = self.pred_reward.eval(feed_dict={self.inputs: s2})
+
+          action = np.zeros(self.num_action)
+          object_= np.zeros(self.num_object)
+
+          _, loss, summary_str = self.sess.run([self.optim, self.loss, self.merged_sum], feed_dict={
+            self.inputs: s,
+            self.true_reward: a,
+            self.pred_reward: pred_reward,
+            self.true_object: o,
+            self.pred_object: pred_object,
           })
 
-        if terminal:
+          if step % 10000 == 0:
+            self.save(checkpoint_dir, step)
+
+          if step % 50 == 0:
+            print("Step: [%2d/%7d] time: %4.4f, loss: %.8f, win: %4d" % (step, self.max_iter, time.time() - start_time, loss, win_count))
+
+        if is_finished:
           state_t, reward, is_finished = self.game.new_game()
-        else:
-          state_t, reward, is_finished = self.game.get_state()
 
         state_t = state_t1

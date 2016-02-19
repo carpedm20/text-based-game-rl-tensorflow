@@ -12,17 +12,24 @@ class TCPClient(object):
     self.connect()
 
   def connect(self):
-    self.client = telnetlib.Telnet(self.host, self.port)
+    self.client = telnetlib.Telnet(self.host, self.port, self.timeout)
 
-  def get(self):
-    data = self.client.read_until('<EOM>')[:-5]
-    print("*****************************")
-    print(data)
-    print("*****************************")
+  def get(self, count=1, timeout=False):
+    for _ in xrange(count):
+      if timeout:
+        data = self.client.read_until('<EOM>', self.timeout)[:-5]
+      else:
+        data = self.client.read_until('<EOM>')[:-5]
+
+      if False:
+        print("***********get***************")
+        print(data)
+        print("*****************************")
     return ansi_escape.sub('', data).strip()
 
   def send(self, data):
-    print("=============================")
-    print(data)
-    print("=============================")
+    if False:
+      print("===========send==============")
+      print(data)
+      print("=============================")
     self.client.write(data + "\n")
